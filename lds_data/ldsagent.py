@@ -21,7 +21,7 @@ class LdsAgent:
     def __init__(self, api_key):
         # Fail if the API key is not set (for now...)
         if api_key == None:
-            raise 'API Key not set'
+            raise Exception('API Key not set')
         self.api_key = api_key
         self.site = 'https://data.london.gov.uk'
         self.debug = False
