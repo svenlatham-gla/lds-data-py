@@ -1,5 +1,6 @@
 from .. import ldsagent
 import os
+import unittest
 
 def test():
     api_key=os.environ['DATASTORE_API']
@@ -22,6 +23,7 @@ def test():
         if os.path.isfile(filepath):
             os.unlink(filepath)
 
+    print("Testing file upload (small file)")
     # Create a file locally and send it to the server:
     filepath = os.path.join(dataset, "test-file.txt")
     f = open(filepath, 'w')
@@ -31,14 +33,15 @@ def test():
     # Upload this test file
     print("Uploading %s" % filepath)
     agent.add_resource(dataset, filepath, "text/plain")
+    print("File uploaded")
 
     # Observe the file on the server:
     resources = agent.get_resources(dataset)
     
-#    if len(resources) == 0:
-#        raise Exception("No resources on server. Looks like file upload did not work.")
-#    if len(resources) > 1:
-#        raise Exception("%d resources on server. Only expected 1." % len(resources))
+    if len(resources) == 0:
+        raise Exception("No resources on server. Looks like file upload did not work.")
+    if len(resources) > 1:
+        raise Exception("%d resources on server. Only expected 1." % len(resources))
 
     resource_id = list(resources.keys())[0]
     file = resources[resource_id]
