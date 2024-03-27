@@ -99,13 +99,21 @@ class LdsAgent:
             headers = {'Authorization': self.api_key},
             data = {})
         self.debugrequest(response)
+        
+    def get_metadata(self, dataset, resource_id):
+        # Returns metadata as an object
+        resources = self.get_resources(dataset)
+        resource = resources.get(resource_id)
+        if resource is None:
+            raise Exception("Resource with ID %s was not found in %s" % (resource_id, dataset))
+        return resource
 
     def update_metadata(self, dataset, resource_id, key, value):
         url = '%s/api/dataset/%s/' % (self.site, dataset)
         endpoint = '/resources/%s/%s' % (resource_id, key)
         response = requests.patch(url,
             headers = {'Authorization': self.api_key},
-            data = {'op': 'add', 'path': endpoint, 'value': value}
+            json = [{'op': 'add', 'path': endpoint, 'value': value}]
         )
         self.debugrequest(response)
 
@@ -150,13 +158,41 @@ class LdsAgent:
     # Add a new resource to this dataset
     # Don't use this if the file already exists. The server will duplicate it.
     def add_resource(self, dataset, srcfile, mime_type):
-        url = '%s/api/dataset/%s/resources/' % (self.site, dataset)
-        response = requests.post(url,
-            files = {'file': open(srcfile, 'rb')},
-            headers = {'Authorization': self.api_key},
-            data = {})
-        self.debugrequest(response)
+        from datetime import datetime, timezone
+        from urllib.parse import urljoin, urlparse
 
+        # Get authentication from DataPress for S3 uploads: 
+        url = ("%s/api/dropzone/signSecureUpload" % (self.site))
+        timestamp = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        filename = os.path.basename(srcfile)
+        filePath = ("london/dataset/%s/%s/%s" % (dataset, timestamp, filename))
+        response = requests.post(url,
+            headers = {'Authorization': self.api_key},
+            json = { 'filePath': filePath })
+        self.debugrequest(response)
+        
+        s3url = response.json()['url']
+        print (s3url)
+
+        with open(srcfile, 'rb') as data:
+            response = requests.put(s3url,
+                data = data,
+                headers = { 'Content-Type': mime_type })
+            self.debugrequest(response)
+        
+        # We now need to update the dataset to reflect this upload:
+        url = '%s/api/dataset/%s/' % (self.site, dataset)
+        metadata = {}
+        metadata['title'] = filename
+        metadata['format'] = mime_type
+        metadata['order'] = -1
+        metadata['url'] = urljoin(s3url, urlparse(s3url).path) # Strip everything from the querystring
+        endpoint = '/resources/-'
+        response = requests.patch(url,
+            headers = {'Authorization': self.api_key},
+            json = [{'op': 'add', 'path': endpoint, 'value': metadata}]
+        )
+        self.debugrequest(response)
 
 
     # Downloads all resources in a dataset to a local folder
